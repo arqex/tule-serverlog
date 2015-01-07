@@ -1,0 +1,8 @@
+{
+  "name": "tule-serverlog",
+  "description": "A viewer for server logs.",
+  "version": "0.0.1",
+  "main": "tule-serverlog.js",
+  "author": "Javi Marquez <javi@arqex.com>",
+  "dependencies": {}
+}

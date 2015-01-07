@@ -1,0 +1,38 @@
+#serverlogContainer{
+	position: fixed;
+	background: #116644;
+	width: 100%;
+	left:0;
+	bottom: 0;
+	height: 0;
+}
+#serverlogContainer.open {
+	height: auto;
+}
+
+.toggle-viewer {
+	position: absolute;
+	cursor: pointer;
+	right: 10px;
+	top: -20px;
+	color: #aaa;
+	padding: 4px;
+}
+
+.toggle-viewer:hover {
+	color: #fff;
+	background: #329752;
+}
+
+.open .toggle-viewer{
+	color: #eee;
+	background: #116644;
+}
+
+serverlog-viewer {
+	display: none;
+}
+
+.open serverlog-viewer {
+	display: block;
+}
