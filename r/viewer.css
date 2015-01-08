@@ -1,0 +1,114 @@
+.topbar {
+	padding: 0 10px;
+}
+
+.tab{
+	display: inline-block;
+	padding: 0 6px;
+	cursor: pointer;
+}
+
+.tab:hover, .settings:hover {
+	background: rgba(255, 255, 255, .1);
+}
+
+.tab:hover .closetab {
+	display: inline;
+}
+
+.tabplus {
+	font-weight: bold;
+}
+
+.closetab {
+	margin-left: 6px;
+	opacity: .6;
+	cursor: pointer;
+	display: none;
+	font-weight: bold;
+}
+.closetab:hover {
+	opacity:1;
+}
+
+.tab.current {
+	background: #222;
+	color: #ddd;
+}
+.settings {
+	float: right;
+	float: right;
+	font-size: 24px;
+	font-weight: bold;
+	height: 20px;
+	padding: 0 6px;
+}
+.console, .newtab {
+	background: #222;
+	padding: 10px;
+	height: 300px;
+	font-size: .9em;
+	line-height: 1em;
+	overflow: auto;
+	color: #ddd;
+	display: none;
+}
+
+.console.open, .newtab.open {
+	display: block;
+}
+
+.console {
+	font-family: monospace;
+	font-size: 1em;
+}
+
+.newtab label {
+	display: block;
+	margin-bottom: 5px;
+}
+
+.newtab input {
+	width: 80%;
+}
+
+.line {
+}
+.line-time {
+	color: #bbb;
+}
+
+.previousLogs {
+	margin-top: 10px;
+}
+
+.logpath a {
+	color: #bbb;
+	text-decoration: none;
+	margin-top: 5px;
+}
+
+.logpath a:hover {
+	color: #ddd;
+}
+
+a.removelog {
+	margin-left: 10px;
+	display: none;
+}
+
+.logpath:hover a.removelog {
+	display: inline;
+}
+
+pre {
+	display: inline;
+}
+
+.line-error {
+	color: #f77;
+}
+
+.line-warn {
+	color: #dd8;
+}

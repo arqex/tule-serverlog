@@ -39,19 +39,28 @@ var readFile = function( path, lastTime ){
 	var deferred = Q.defer();
 
 	var b = getBuffer( path ),
-		ws = Writable(),
+		ws = new Writable(),
 		lines = [],
-		rs = fs( path, {encoding: 'utf8'} ),
+		rs,
 		repeated = 0,
 		maxRepeatedLines = 3,
 		now = Date.now()
 	;
+
+	try {
+		rs = fs( path, {encoding: 'utf8'} );
+	}
+	catch (e) {
+		return Q.reject( e );
+	}
 
 	ws._write = function( chunk, enc, next ){
 		var line = chunk.toString('utf8');
 
 		if( !line.length )
 			return next();
+
+		lines.push( {timestamp: now, line:line} );
 
 		// If we got some number of line that matches
 		// the last lines of the buffer, we have reached
@@ -61,14 +70,12 @@ var readFile = function( path, lastTime ){
 		else {
 			repeated++;
 			if( repeated >= maxRepeatedLines )
-				return rs.close();
+				return rs.destroy();
 		}
 
-		lines.push( {timestamp: now, line:line} );
-
-		// If the number of line reaches the buffer limit, close it
+		// If the number of line reaches the buffer limit, destroy it
 		if( lines.length >= bufferLimit )
-			return rs.close();
+			return rs.destroy();
 
 		next();
 	};
@@ -86,8 +93,7 @@ var readFile = function( path, lastTime ){
 	});
 
 	return deferred.promise;
-}
-
+};
 
 // Hijack the console
 var oriStdout = process.stdout.write;
@@ -138,6 +144,7 @@ module.exports = {
 				})
 				.catch( function( err ){
 					console.log( err.stack );
+					res.json( {error: 'Not found'} );
 				})
 			;
 		}

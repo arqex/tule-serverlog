@@ -7,7 +7,7 @@
   		<div class="tabs">
   			<div class="tab {{consoleCurrent}}" on-click="{{ handleTabClick }}" data-name="console">Console</div>
 			<template repeat="{{ tab in tabs }}">
-			<div class="tab {{ tab.current }}" on-click="{{ handleTabClick }}" data-name="{{ tab.name }}">{{ tab.name }}<span class="closetab">X</span></div>
+			<div class="tab {{ tab.current }}" on-click="{{ handleTabClick }}" data-name="{{ tab.name }}">{{ tab.name }}<span class="closetab" on-click="{{closeTab}}" data-name="{{ tab.name }}">x</span></div>
 			</template>
 			<div class="tab tabplus {{plusCurrent}}" on-click="{{ showNewTab }}">+</div>
   		</div>
@@ -16,82 +16,25 @@
 	<template repeat="{{ line in buffer }}">
 		<div class="line">
 			<span class="line-time">[{{ formatTime( line.timestamp ) }}]</span>
-			<span class="line-content">{{line.line}}</span>
+			<span class="line-content"><pre class="line-{{ line.level }}">{{line.line}}</pre></span>
 		</div>
 	</template>
 	</div>
 	<div class="newtab" id="newtab">
 		<div class="filepath">
 			<label for="filepath">Write the log file path in the server:</label>
-			<input type="text" id="filepath"/><button on-click="{{createTab}}">Create</button>
+			<input type="text" id="filepath" on-keyup="{{handleLogEnter}}"/><button on-click="{{createTabFromInput}}">Create</button>
 		</div>
 		<div class="previousLogs">
 			<template repeat="{{ log in logs }}">
-			<a class="logpath">{{ log }}</a>
+			<div class="logpath">
+				<a on-click="{{createTabFromList}}" data-path="{{log}}" href="#">{{ log }}</a>
+				<a on-click="{{removeLog}}" data-path="{{ log }}" href="#" class="removelog">x</a>
+			</div>
 			</template>
 		</div>
 	</div>
-	<style>
-		.topbar {
-			padding: 0 10px;
-		}
-
-		.tab{
-			display: inline-block;
-			padding: 0 6px;
-			cursor: pointer;
-		}
-
-		.tab:hover, .settings:hover {
-			background: rgba(255, 255, 255, .1);
-		}
-
-		.tab.current {
-			background: #222;
-			color: #ddd;
-		}
-		.settings {
-			float: right;
-			float: right;
-			font-size: 24px;
-			font-weight: bold;
-			height: 20px;
-			padding: 0 6px;
-		}
-		.console, .newtab {
-			background: #222;
-			padding: 10px;
-			height: 300px;
-			font-size: .9em;
-			line-height: 1em;
-			overflow: auto;
-			color: #ddd;
-			display: none;
-		}
-
-		.console.open, .newtab.open {
-			display: block;
-		}
-
-		.console {
-			font-family: 'Consolas', 'Monaco', 'Courier New', courier;
-		}
-
-		.newtab label {
-			display: block;
-			margin-bottom: 5px;
-		}
-
-		.newtab input {
-			width: 80%;
-		}
-
-		.line {
-		}
-		.line-time {
-			color: #bbb;
-		}
-	</style>
+	<link rel="stylesheet" type="text/css" href="viewer.css">
   </template>
   <script>
   	var component = Polymer({
@@ -101,10 +44,11 @@
   		consoleCurrent: 'current',
   		plusCurrent: '',
   		current: {},
+  		logs: [],
   		ready: function(){
 
   			this.url = this.attributes.url ? this.attributes.url.value : '';
-  			this.doUpdates = this.attributes.runupdates == 'true';
+  			this.doUpdates = this.attributes.runupdates && this.attributes.runupdates.value == 'true';
 
   			if( !this.url )
   				return;
@@ -136,7 +80,6 @@
 
   			var me = this;
   			this.buffer = this.current.buffer;
-  			this.lastTime = this.buffer.length ? this.buffer[0].timestamp : false;
   			this.file = this.current.path;
 
   			this.timer = setInterval( function(){
@@ -163,7 +106,10 @@
 
 					me.lastTime = lines[0].timestamp;
 
+					me.parseLogLines( lines );
+
 					me.buffer = lines.concat( me.buffer );
+					me.buffers[ me.current.name ] = me.buffer;
 
 					if( me.buffer.length > me.bufferSize )
 						me.buffer = me.buffer.splice( 0, me.bufferSize );
@@ -177,6 +123,27 @@
 			var date = new Date( timestamp );
 
 			return date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds();
+		},
+
+		parseLogLines: function( lines ){
+			var me = this,
+				parsed
+			;
+
+			lines.forEach( function( l ){
+				try{
+					parsed = JSON.parse( l.line );
+					if( parsed.timestamp )
+						l.timestamp = parsed.timestamp;
+					if( parsed.message )
+						l.line = parsed.message.replace('↵', '\n');
+					if( parsed.level )
+						l.level = parsed.level;
+				}
+				catch(e) {
+					// Do nothing
+				}
+			});
 		},
 
 		showNewTab: function(){
@@ -201,6 +168,16 @@
 			}
 		},
 
+		removeLog: function( e ){
+			e.preventDefault();
+
+			var index = this.logs.indexOf( e.target.dataset.path );
+
+			this.logs.splice( index, 1 );
+
+			this.clientStore.set('logs', this.logs);
+		},
+
 		handleTabClick: function( e ){
 			this.changeTab( e.target.dataset.name );
 		},
@@ -214,26 +191,121 @@
 				buffer: this.buffers[ tabName ]
 			};
 
+			this.buffer = this.buffers[ tabName ];
+
+			if( this.clientStore )
+				this.clientStore.set('currentTab', tabName);
+
 			this.$.console.setAttribute('class', 'console open');
 			this.$.newtab.setAttribute('class', 'newtab');
+
+			this.lastTime = this.buffer.length ? this.buffer[0].timestamp : 0;
+
 			if( this.doUpdates )
 				this.updateTimer();
 		},
 
-		createTab: function(){
-			var path = this.$.filepath.value,
-				segments = path.split('/'),
+		createTab: function( path ){
+			var segments = path.split('/'),
 				name
 			;
 
 			if( path.length )
 				name = segments[ segments.length - 1 ];
 
-			this.tabs.push( {name: name, current: ''} );
+			this.tabs.push( {name: name, current: '', path: path} );
 			this.logPaths[ name ] = path;
 			this.buffers[ name ] = [];
 
+			this.clientStore.set('tabs', this.tabs);
+
+			this.addToLogs( path );
+
 			this.changeTab( name );
+		},
+
+		addToLogs: function( path ){
+			var index = this.logs.indexOf( path );
+
+			if( index != -1 )
+				this.logs.splice( index, 1 );
+
+			this.logs.unshift( path );
+
+			this.logs = this.logs.slice(0, 8);
+
+			this.clientStore.set('logs', this.logs );
+		},
+
+		createTabFromList: function( e ){
+			e.preventDefault();
+			this.createTab( e.target.dataset.path );
+		},
+
+		createTabFromInput: function(){
+			this.createTab( this.$.filepath.value );
+		},
+
+		handleLogEnter: function( e ){
+			if( e.which == 13 )
+				this.createTabFromInput();
+		},
+
+		closeTab: function( e ){
+			e.preventDefault();
+
+			var tabName = e.target.dataset.name;
+
+			for (var i = this.tabs.length - 1; i >= 0; i--) {
+				if( this.tabs[i].name == tabName )
+					this.tabs.splice(i, 1);
+			}
+
+			delete this.logPaths[ tabName ];
+			delete this.buffers[ tabName ];
+
+			this.clientStore.set('tabs', this.tabs );
+
+			if( this.current.name == tabName )
+				this.changeTab('console');
+		},
+
+		setClientStore: function( store ){
+			var settingsName = 'serverlog';
+
+			this.clientStore = {
+				get: function( name ){
+					return store.get( settingsName )[name];
+				},
+				set: function( name, value ){
+					var settings = store.get( settingsName );
+
+					settings[ name ] = value;
+
+					store.set( settingsName, settings );
+				}
+			};
+
+			this.restorePreferences();
+		},
+
+		restorePreferences: function(){
+			var me = this,
+				store = this.clientStore,
+				tabs = store.get('tabs'),
+				currentTab = store.get('currentTab'),
+				logs = store.get('logs')
+			;
+
+			if( tabs ){
+				tabs.forEach( function( t ){
+					me.createTab( t.path );
+				});
+			}
+			if( currentTab )
+				this.changeTab( currentTab );
+
+			this.logs = logs || [];
 		}
   	});
 

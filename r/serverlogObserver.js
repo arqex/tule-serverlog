@@ -33,7 +33,7 @@ define(['jquery', 'underscore', 'clientStore', 'text!./tuleServerlog.html', 'css
 	var viewer = $(container).find('serverlog-viewer')[0];
 
 	$(window).one( 'polymer-ready', function(){
-		console.log( 'Viewer ready' );
+		viewer.setClientStore( ClientStore );
 	});
 
 	$('.js-toggle-viewer').on('click', function(){
