@@ -11,13 +11,12 @@ module.exports = {
 	init: function(hooks){
 		hooks.addFilter('settings:get:routes:static', function(routes){
 			console.log( 'inited' );
-			routes.push({url: 'tuleserverlog', path: 'tule-serverlog/r'});
-			routes.push({url: 'serverlog', path: 'tule-serverlog/serverlog/r'});
+			routes.push({url: 'serverlog', path: 'tule-serverlog/r'});
 			return routes;
 		});
 
 		hooks.addFilter('settings:get:frontend:observers', function( observers ){
-			observers.push('../tuleserverlog/serverlogObserver');
+			observers.push('../serverlog/serverlogObserver');
 			return observers;
 		});
 

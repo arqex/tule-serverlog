@@ -1,6 +1,17 @@
 
-define(['jquery', 'text!./tuleServerlog.html', 'css!./tuleServerlog.css'], function( $, tplSource ){
+define(['jquery', 'underscore', 'clientStore', 'text!./tuleServerlog.html', 'css!./tuleServerlog.css'],
+	function( $, _, ClientStore, tplSource ){
 	'use strict';
+
+	var settingName = 'serverlog';
+
+	// Create client preferences if they are not created
+	var preferences = ClientStore.get( settingName );
+	if( !preferences ){
+		preferences = {open: false};
+		ClientStore.set( settingName, preferences );
+	}
+
 
 	var s = document.createElement('script');
 	s.type = 'text/javascript';
@@ -10,10 +21,33 @@ define(['jquery', 'text!./tuleServerlog.html', 'css!./tuleServerlog.css'], funct
 	var container = document.createElement('div');
 
 	container.id = 'serverlogContainer';
-	container.innerHTML = tplSource;
+	container.setAttribute('class', preferences.open ? 'open' : '');
+	container.innerHTML = _.template(tplSource, {open: preferences.open });
+
+	$(container).on( 'ready', function(){
+		console.log( viewer.runUpdates );
+	});
+
 	document.body.appendChild(container);
 
+	var viewer = $(container).find('serverlog-viewer')[0];
+
+	$(window).one( 'polymer-ready', function(){
+		console.log( 'Viewer ready' );
+	});
+
 	$('.js-toggle-viewer').on('click', function(){
-		$(container).toggleClass('open');
+		var $c = $(container);
+
+		$c.toggleClass('open');
+		var open = $c.hasClass( 'open' ),
+			s = ClientStore.get( settingName )
+		;
+
+		s.open = open;
+
+		ClientStore.set( settingName, s );
+
+		viewer.runUpdates( s.open );
 	});
 });
