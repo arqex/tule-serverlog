@@ -3,7 +3,9 @@
 var config = require('config'),
 	qdb = config.require('qdb'),
 	readline = require('readline'),
-	fs = require('fs')
+	fs = require('fs-reverse'),
+	Writable = require('stream').Writable,
+	Q = require('q')
 ;
 
 var bufferLimit = 100;
@@ -12,32 +14,83 @@ var buffers = {
 	console: []
 };
 
-var oriStdout = process.stdout.write;
+var timers = {},
+	bufferLife = 10 * 60000 // ten minutes
+;
 
-var readLine = function( contents, offset ){
-	var os = offset || 0,
-		i = contents.length - offset - 1,
-		line = [],
-		current
+var getBuffer = function( path ){
+	var b = buffers[path];
+
+	if( !b )
+		b = buffers[path] = [];
+
+	if( timers[path] )
+		clearTimeout( timers[path] );
+
+	timers[path] = setTimeout( function(){
+		delete buffers[path];
+		delete timers[path];
+	}, bufferLife );
+
+	return b;
+};
+
+var readFile = function( path, lastTime ){
+	var deferred = Q.defer();
+
+	var b = getBuffer( path ),
+		ws = Writable(),
+		lines = [],
+		rs = fs( path, {encoding: 'utf8'} ),
+		repeated = 0,
+		maxRepeatedLines = 3,
+		now = Date.now()
 	;
 
-	if( i >= 0 )
-		current = contents[i--];
+	ws._write = function( chunk, enc, next ){
+		var line = chunk.toString('utf8');
 
-	while( i>=0 && current != '\n' ){
-		line = current + line;
-		current = contents[i--];
-	}
+		if( !line.length )
+			return next();
 
-	return {contents: line, offset: i};
-};
+		// If we got some number of line that matches
+		// the last lines of the buffer, we have reached
+		// the buffer point
+		if( !b[repeated] || line != b[repeated].line )
+			repeated = 0;
+		else {
+			repeated++;
+			if( repeated >= maxRepeatedLines )
+				return rs.close();
+		}
 
-var readFile = function( path, lastLine, clbk ){
-	fs.readFile( path, function( err, contents ){
+		lines.push( {timestamp: now, line:line} );
 
+		// If the number of line reaches the buffer limit, close it
+		if( lines.length >= bufferLimit )
+			return rs.close();
+
+		next();
+	};
+
+	rs.pipe( ws );
+	rs.on('close', function(){
+		b = lines.slice(0, lines.length - repeated)
+			.concat( b )
+			.slice( 0, bufferLimit )
+		;
+
+		buffers[ path ] = b;
+
+		deferred.resolve( b );
 	});
-};
 
+	return deferred.promise;
+}
+
+
+// Hijack the console
+var oriStdout = process.stdout.write;
 process.stdout.write = function( line ){
 	var b = buffers.console;
 	b.unshift({timestamp: Date.now(), line: line});
@@ -45,6 +98,23 @@ process.stdout.write = function( line ){
 		b.pop();
 
 	oriStdout.call(process.stdout, line );
+};
+
+var getNewLines = function( buffer, lastTime ){
+	if( !lastTime )
+		return buffer;
+
+	var i = 0,
+		current = buffer[ i++ ],
+		newLines = []
+	;
+
+	while( current && current.timestamp > lastTime ){
+		newLines.push( current );
+		current = buffer[ i++ ];
+	}
+
+	return newLines;
 };
 
 module.exports = {
@@ -62,24 +132,16 @@ module.exports = {
 			if( buffer.length )
 				lastLine = buffer[0];
 
-			return readFile(file, lastLine, function(){
-
-			});
+			return readFile( file, lastLine )
+				.then( function( b ){
+					res.json( getNewLines( b, time ) );
+				})
+				.catch( function( err ){
+					console.log( err.stack );
+				})
+			;
 		}
 
-		if( !time )
-			return res.json( buffer );
-
-		var i = 0,
-			current = buffer[ i++ ],
-			toSend = []
-		;
-
-		while( current && current.timestamp > time ){
-			toSend.push( current );
-			current = buffer[ i++ ];
-		}
-
-		return res.json( toSend );
+		return res.json( getNewLines( buffer, time ) );
 	}
 };
