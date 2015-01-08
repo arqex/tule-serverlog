@@ -13,7 +13,7 @@
   		</div>
   	</div>
   	<div class="console open" id="console">
-	<template repeat="{{ line in buffer }}">
+	<template repeat="{{ line in current.buffer }}">
 		<div class="line">
 			<span class="line-time">[{{ formatTime( line.timestamp ) }}]</span>
 			<span class="line-content"><pre class="line-{{ line.level }}">{{line.line}}</pre></span>
@@ -79,7 +79,6 @@
   				clearInterval( this.timer );
 
   			var me = this;
-  			this.buffer = this.current.buffer;
   			this.file = this.current.path;
 
   			this.timer = setInterval( function(){
@@ -99,7 +98,9 @@
 				req = getJSON( url );
 
 				req.onload = function(){
-					var lines = JSON.parse( req.responseText );
+					var lines = JSON.parse( req.responseText ),
+						buffer = me.current.buffer
+					;
 
 					if( !lines.length )
 						return;
@@ -108,13 +109,13 @@
 
 					me.parseLogLines( lines );
 
-					me.buffer = lines.concat( me.buffer );
-					me.buffers[ me.current.name ] = me.buffer;
+					buffer = lines.concat( buffer );
 
-					if( me.buffer.length > me.bufferSize )
-						me.buffer = me.buffer.splice( 0, me.bufferSize );
+					if( buffer.length > me.bufferSize )
+						buffer = buffer.splice( 0, me.bufferSize );
 
-					console.log( lines );
+					me.buffers[ me.current.name ] = buffer;
+					me.current.buffer = buffer;
 				};
 			}, 2000 );
   		},
@@ -191,15 +192,13 @@
 				buffer: this.buffers[ tabName ]
 			};
 
-			this.buffer = this.buffers[ tabName ];
-
 			if( this.clientStore )
 				this.clientStore.set('currentTab', tabName);
 
 			this.$.console.setAttribute('class', 'console open');
 			this.$.newtab.setAttribute('class', 'newtab');
 
-			this.lastTime = this.buffer.length ? this.buffer[0].timestamp : 0;
+			this.lastTime = this.current.buffer.length ? this.current.buffer[0].timestamp : 0;
 
 			if( this.doUpdates )
 				this.updateTimer();
