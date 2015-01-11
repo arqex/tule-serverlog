@@ -48,7 +48,7 @@ var readFile = function( path, lastTime ){
 	;
 
 	try {
-		rs = fs( path, {encoding: 'utf8'} );
+		rs = fs( path, {bufferSize: 2048 * 64} );
 	}
 	catch (e) {
 		return Q.reject( e );
@@ -96,15 +96,22 @@ var readFile = function( path, lastTime ){
 };
 
 // Hijack the console
-var oriStdout = process.stdout.write;
-process.stdout.write = function( line ){
-	var b = buffers.console;
-	b.unshift({timestamp: Date.now(), line: line});
-	if( b.length > bufferLimit )
-		b.pop();
+var bypassConsole = function( stream, level ){
+	var ori = stream.write;
 
-	oriStdout.call(process.stdout, line );
+	stream.write = function( line ) {
+		var b = buffers.console;
+
+		b.unshift({timestamp: Date.now(), line: line, level: level});
+		if( b.length > bufferLimit )
+			b.pop();
+
+		ori.call(stream, line );
+	};
 };
+
+bypassConsole( process.stdout, 'info' );
+bypassConsole( process.stderr, 'error' );
 
 var getNewLines = function( buffer, lastTime ){
 	if( !lastTime )
