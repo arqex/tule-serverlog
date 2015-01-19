@@ -5,6 +5,7 @@
 	left:0;
 	bottom: 0;
 	height: 0;
+	z-index: 20;
 }
 #serverlogContainer.open {
 	height: auto;
